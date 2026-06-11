@@ -1,0 +1,40 @@
+# Configuration for the stock/option price forecaster.
+# Edit these values, or override any of them on the command line, e.g.
+#   python -m src.cli train --ticker AAPL --epochs 50 --lookback 90
+
+data:
+  ticker: AAPL          # symbol to download from Yahoo Finance
+  start: "2015-01-01"   # history start date
+  end: null             # null = up to today
+  interval: "1d"        # 1d, 1h, etc. (intraday history is limited by Yahoo)
+  # Columns used as model inputs. The target ("Close") must be present.
+  features: ["Open", "High", "Low", "Close", "Volume"]
+  target: "Close"
+  # "logreturn" predicts daily % changes and rebuilds the price from the last
+  # actual price (recommended). "price" predicts the raw level and tends to
+  # drift toward the historical average -> looks like a fake crash.
+  target_mode: "logreturn"
+
+window:
+  lookback: 60          # number of past days fed into the model
+  horizon: 5            # number of future days to predict at once
+
+model:
+  hidden_size: 128
+  num_layers: 2
+  dropout: 0.2
+  bidirectional: false
+
+train:
+  epochs: 60
+  batch_size: 64
+  lr: 0.001
+  weight_decay: 0.00001
+  val_split: 0.15       # fraction of the (chronological) tail used for validation
+  patience: 10          # early-stopping patience (epochs without val improvement)
+  seed: 42
+  device: "auto"        # auto | cpu | cuda
+
+paths:
+  checkpoint: "checkpoints/model.pt"
+  output_dir: "outputs"

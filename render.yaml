@@ -1,0 +1,12 @@
+# One-click deploy config for Render (https://render.com).
+# In Render: New + > Blueprint > connect your repo > it reads this file.
+services:
+  - type: web
+    name: yn-neuro-api
+    runtime: docker
+    dockerfilePath: ./Dockerfile
+    plan: free
+    healthCheckPath: /health
+    envVars:
+      - key: MODEL_CACHE_DIR
+        value: /app/checkpoints
