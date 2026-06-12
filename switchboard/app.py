@@ -51,6 +51,10 @@ GEMINI_URL = (
     f"{GEMINI_MODEL}:generateContent"
 )
 BLAND_API_KEY = os.environ.get("BLAND_API_KEY", "")
+VAPI_API_KEY = os.environ.get("VAPI_API_KEY", "")
+VAPI_PHONE_NUMBER_ID = os.environ.get("VAPI_PHONE_NUMBER_ID", "")
+VAPI_VOICE = os.environ.get("VAPI_VOICE", "alloy")
+VAPI_MODEL = os.environ.get("VAPI_MODEL", "gpt-4o")
 CALL_PROVIDER = os.environ.get("CALL_PROVIDER", "mock").lower()
 
 STATIC_DIR = Path(__file__).parent / "static"
@@ -144,6 +148,76 @@ async def bland_status(call_id: str) -> dict:
     return {"status": "completed" if done else "in-progress", "transcript": turns}
 
 
+async def vapi_start(number: str, task: str, first_line: str) -> str:
+    if not VAPI_API_KEY:
+        raise HTTPException(503, "VAPI_API_KEY not set. Use CALL_PROVIDER=mock to demo offline.")
+    if not VAPI_PHONE_NUMBER_ID:
+        raise HTTPException(
+            503,
+            "VAPI_PHONE_NUMBER_ID not set. Create/import a number in the Vapi dashboard "
+            "and put its id in .env.",
+        )
+    body = {
+        "phoneNumberId": VAPI_PHONE_NUMBER_ID,
+        "customer": {"number": number},
+        "assistant": {
+            "firstMessage": first_line or "Hi there!",
+            "model": {
+                "provider": "openai",
+                "model": VAPI_MODEL,
+                "messages": [{
+                    "role": "system",
+                    "content": (
+                        "You are a friendly person making a phone call on someone's behalf. "
+                        "Speak naturally and briefly. Your goal: " + task +
+                        " Once you have what you need, thank them and end the call."
+                    ),
+                }],
+            },
+            "voice": {"provider": "openai", "voiceId": VAPI_VOICE},
+        },
+    }
+    async with httpx.AsyncClient(timeout=30) as client:
+        r = await client.post(
+            "https://api.vapi.ai/call",
+            headers={"Authorization": f"Bearer {VAPI_API_KEY}"},
+            json=body,
+        )
+    if r.status_code >= 300:
+        raise HTTPException(502, f"Vapi error {r.status_code}: {r.text[:300]}")
+    cid = r.json().get("id")
+    if not cid:
+        raise HTTPException(502, f"Vapi gave no call id: {r.text[:200]}")
+    return cid
+
+
+async def vapi_status(call_id: str) -> dict:
+    async with httpx.AsyncClient(timeout=30) as client:
+        r = await client.get(
+            f"https://api.vapi.ai/call/{call_id}",
+            headers={"Authorization": f"Bearer {VAPI_API_KEY}"},
+        )
+    if r.status_code >= 300:
+        raise HTTPException(502, f"Vapi error {r.status_code}: {r.text[:300]}")
+    d = r.json()
+    artifact = d.get("artifact") or {}
+    msgs = artifact.get("messages") or d.get("messages") or []
+    turns = []
+    for m in msgs:
+        role = (m.get("role") or "").lower()
+        if role == "system":
+            continue
+        text = m.get("message") or m.get("content") or ""
+        if not text:
+            continue
+        turns.append({
+            "speaker": "assistant" if role in ("assistant", "bot") else "caller",
+            "text": text,
+        })
+    done = d.get("status") == "ended"
+    return {"status": "completed" if done else "in-progress", "transcript": turns}
+
+
 def mock_start(number: str, task: str) -> str:
     cid = "mock_" + uuid.uuid4().hex[:10]
     _MOCK_CALLS[cid] = {"started": time.time(), "task": task, "number": number}
@@ -195,6 +269,8 @@ async def health():
         "provider": CALL_PROVIDER,
         "gemini_key": bool(GEMINI_API_KEY),
         "bland_key": bool(BLAND_API_KEY),
+        "vapi_key": bool(VAPI_API_KEY),
+        "vapi_number": bool(VAPI_PHONE_NUMBER_ID),
     }
 
 
@@ -232,6 +308,8 @@ async def call(req: CallRequest):
 
     if provider == "mock":
         cid = mock_start(req.number, task)
+    elif provider == "vapi":
+        cid = await vapi_start(req.number, task, req.first_line)
     else:
         cid = await bland_start(req.number, task, req.first_line, req.record)
 
@@ -243,6 +321,8 @@ async def call_status(provider: str, call_id: str):
     """Poll a call's status + live transcript."""
     if provider == "mock" or call_id.startswith("mock_"):
         return mock_status(call_id)
+    if provider == "vapi":
+        return await vapi_status(call_id)
     return await bland_status(call_id)
 
 
