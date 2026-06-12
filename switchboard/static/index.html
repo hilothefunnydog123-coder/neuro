@@ -329,10 +329,15 @@ $("#goBtn").onclick=async()=>{
 
   $("#calls").innerHTML="";$("#tableCard").classList.add("hidden");$("#table").innerHTML="";$("#bookBtn").classList.add("hidden");
   $("#goBtn").disabled=true;
-  const calls=await Promise.all(targets.map(t=>startCall(t.number,t.label)));
-  await Promise.all(calls.map(c=>pollCall(c)));
-  if(mode==="around"&&calls.length>1)buildTable(calls);
-  $("#goBtn").disabled=false;
+  try{
+    const calls=await Promise.all(targets.map(t=>startCall(t.number,t.label)));
+    await Promise.all(calls.map(c=>pollCall(c)));
+    if(mode==="around"&&calls.length>1)buildTable(calls);
+  }catch(e){
+    err("Couldn't start the call: "+e.message);
+  }finally{
+    $("#goBtn").disabled=false;   // never leave the button stuck/dark again
+  }
 };
 
 async function startCall(number,label){
@@ -394,10 +399,16 @@ $("#bookBtn").onclick=async()=>{
     questions:["Confirm the booking is set","Get a confirmation name or time"],
     first_line:`Hi, I'd like to go ahead and book the appointment.`};
   const saved=plan;plan=bookPlan;
-  const c=await startCall(lastWinner.number,`Booking · ${lastWinner.label}`);
-  await pollCall(c);
-  plan=saved;
-  $("#bookBtn").disabled=false;$("#bookBtn").textContent="✓ Booked — see the call above";
+  try{
+    const c=await startCall(lastWinner.number,`Booking · ${lastWinner.label}`);
+    await pollCall(c);
+    $("#bookBtn").textContent="✓ Booked — see the call above";
+  }catch(e){
+    err("Couldn't place the booking call: "+e.message);
+    $("#bookBtn").textContent=`Book ${lastWinner.label} for me`;
+  }finally{
+    plan=saved;$("#bookBtn").disabled=false;
+  }
 };
 </script>
 </body>

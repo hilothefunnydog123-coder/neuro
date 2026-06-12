@@ -226,18 +226,28 @@ async def vapi_start(number: str, task: str, first_line: str, language: str = ""
     # stream live transcript back to us if we know our public URL
     if PUBLIC_BASE_URL:
         assistant["serverUrl"] = f"{PUBLIC_BASE_URL}/api/vapi/webhook"
-        assistant["serverMessages"] = ["transcript", "status-update", "end-of-call-report"]
+        assistant["serverMessages"] = ["conversation-update", "status-update", "end-of-call-report"]
     body = {
         "phoneNumberId": VAPI_PHONE_NUMBER_ID,
         "customer": {"number": number},
         "assistant": assistant,
     }
-    async with httpx.AsyncClient(timeout=30) as client:
-        r = await client.post(
-            "https://api.vapi.ai/call",
-            headers={"Authorization": f"Bearer {VAPI_API_KEY}"},
-            json=body,
-        )
+
+    async def _post(b):
+        async with httpx.AsyncClient(timeout=30) as client:
+            return await client.post(
+                "https://api.vapi.ai/call",
+                headers={"Authorization": f"Bearer {VAPI_API_KEY}"},
+                json=b,
+            )
+
+    r = await _post(body)
+    # If Vapi rejects the optional live-transcript webhook fields, NEVER let that
+    # block the call — strip them and retry so the call still goes through.
+    if r.status_code >= 300 and ("serverUrl" in assistant):
+        assistant.pop("serverUrl", None)
+        assistant.pop("serverMessages", None)
+        r = await _post(body)
     if r.status_code >= 300:
         raise HTTPException(502, f"Vapi error {r.status_code}: {r.text[:300]}")
     cid = r.json().get("id")
@@ -496,6 +506,21 @@ async def vapi_webhook(payload: dict):
                 "speaker": "assistant" if role in ("assistant", "bot") else "caller",
                 "text": text,
             })
+    elif mtype == "conversation-update":
+        # rebuild the running transcript from the full message list each update
+        turns = []
+        for m in (msg.get("messages") or msg.get("conversation") or []):
+            role = (m.get("role") or "").lower()
+            if role == "system":
+                continue
+            text = (m.get("message") or m.get("content") or "").strip()
+            if text:
+                turns.append({
+                    "speaker": "assistant" if role in ("assistant", "bot") else "caller",
+                    "text": text,
+                })
+        if turns:
+            live["turns"] = turns
     elif mtype == "status-update" and msg.get("status") == "ended":
         live["done"] = True
     elif mtype == "end-of-call-report":
