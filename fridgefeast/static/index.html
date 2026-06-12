@@ -1,0 +1,328 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Fridge → Feast — cook what's already there</title>
+<style>
+  :root {
+    --bg: #0d1117;
+    --panel: #161b22;
+    --panel-2: #1c2330;
+    --line: #2a3441;
+    --text: #e6edf3;
+    --muted: #8b97a7;
+    --brand: #36d399;       /* fresh green */
+    --brand-2: #2bb3ff;     /* cool blue */
+    --warn: #ffb454;
+    --radius: 18px;
+    --shadow: 0 18px 50px rgba(0,0,0,.45);
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Inter, Roboto, sans-serif;
+    background: radial-gradient(1200px 600px at 50% -10%, #16323a 0%, var(--bg) 55%);
+    color: var(--text);
+    min-height: 100vh;
+    padding: 28px 16px 80px;
+  }
+  .wrap { max-width: 760px; margin: 0 auto; }
+
+  /* Header */
+  header { text-align: center; margin-bottom: 28px; }
+  .logo {
+    display: inline-flex; align-items: center; gap: 10px;
+    font-weight: 800; font-size: 26px; letter-spacing: -.5px;
+  }
+  .logo .dot { font-size: 28px; }
+  .logo b { background: linear-gradient(90deg, var(--brand), var(--brand-2));
+    -webkit-background-clip: text; background-clip: text; color: transparent; }
+  .tag { color: var(--muted); margin-top: 8px; font-size: 15px; }
+  .tag b { color: var(--text); }
+
+  /* Cards / panels */
+  .card {
+    background: var(--panel); border: 1px solid var(--line);
+    border-radius: var(--radius); box-shadow: var(--shadow);
+    padding: 22px; margin-bottom: 18px;
+  }
+  .step-label {
+    display: inline-flex; align-items: center; gap: 8px;
+    font-size: 12px; font-weight: 700; text-transform: uppercase;
+    letter-spacing: .12em; color: var(--brand); margin-bottom: 14px;
+  }
+  .step-label span.num {
+    background: rgba(54,211,153,.15); color: var(--brand);
+    width: 22px; height: 22px; border-radius: 50%;
+    display: grid; place-items: center; font-size: 12px;
+  }
+
+  /* Dropzone */
+  .drop {
+    border: 2px dashed var(--line); border-radius: 14px;
+    padding: 34px 18px; text-align: center; cursor: pointer;
+    transition: .2s; background: var(--panel-2);
+  }
+  .drop:hover { border-color: var(--brand); background: #1a2430; }
+  .drop .big { font-size: 34px; margin-bottom: 8px; }
+  .drop p { color: var(--muted); font-size: 14px; }
+  .preview { width: 100%; border-radius: 12px; margin-top: 6px; display: none; }
+  .row { display: flex; gap: 10px; flex-wrap: wrap; margin-top: 14px; }
+
+  /* Buttons */
+  button {
+    font: inherit; font-weight: 700; cursor: pointer; border: none;
+    border-radius: 12px; padding: 13px 20px; transition: .15s; color: #04130d;
+  }
+  .btn-primary { background: linear-gradient(90deg, var(--brand), #2fe0a6); flex: 1; }
+  .btn-primary:hover { filter: brightness(1.06); transform: translateY(-1px); }
+  .btn-ghost { background: var(--panel-2); color: var(--text); border: 1px solid var(--line); }
+  .btn-ghost:hover { border-color: var(--brand); }
+  button:disabled { opacity: .5; cursor: not-allowed; transform: none; }
+
+  /* Chips */
+  .chips { display: flex; flex-wrap: wrap; gap: 9px; margin-top: 6px; }
+  .chip {
+    padding: 9px 14px; border-radius: 999px; cursor: pointer;
+    background: var(--panel-2); border: 1px solid var(--line);
+    color: var(--text); font-size: 14px; font-weight: 600; transition: .15s;
+    user-select: none;
+  }
+  .chip.on { background: rgba(54,211,153,.16); border-color: var(--brand); color: var(--brand); }
+  .chip:hover { border-color: var(--brand); }
+  .add-row { display: flex; gap: 8px; margin-top: 14px; }
+  .add-row input {
+    flex: 1; background: var(--panel-2); border: 1px solid var(--line);
+    border-radius: 12px; padding: 12px 14px; color: var(--text); font: inherit;
+  }
+  .add-row input:focus { outline: none; border-color: var(--brand); }
+
+  /* Recipe cards */
+  .recipe {
+    background: var(--panel-2); border: 1px solid var(--line);
+    border-radius: 14px; padding: 18px; margin-bottom: 12px; cursor: pointer;
+    transition: .15s;
+  }
+  .recipe:hover { border-color: var(--brand); transform: translateY(-2px); }
+  .recipe h3 { font-size: 18px; margin-bottom: 6px; }
+  .recipe .meta { display: flex; gap: 14px; color: var(--muted); font-size: 13px; margin-bottom: 8px; flex-wrap: wrap; }
+  .recipe .desc { color: #c4cedb; font-size: 14px; line-height: 1.5; }
+  .pill { font-size: 11px; font-weight: 700; padding: 3px 9px; border-radius: 999px; }
+  .pill.have { background: rgba(54,211,153,.15); color: var(--brand); }
+  .pill.need { background: rgba(255,180,84,.15); color: var(--warn); }
+  .tags { display: flex; gap: 6px; flex-wrap: wrap; margin-top: 10px; }
+
+  /* Cook mode */
+  .cook h2 { font-size: 24px; margin-bottom: 4px; letter-spacing: -.5px; }
+  .cook .meta { color: var(--muted); font-size: 14px; margin-bottom: 18px; }
+  .ing-list { list-style: none; margin-bottom: 20px; }
+  .ing-list li { padding: 8px 0; border-bottom: 1px solid var(--line); display: flex; justify-content: space-between; font-size: 14px; }
+  .ing-list li span:last-child { color: var(--muted); }
+  .cook-step { display: flex; gap: 14px; margin-bottom: 16px; }
+  .cook-step .n {
+    flex: none; width: 30px; height: 30px; border-radius: 50%;
+    background: linear-gradient(90deg, var(--brand), var(--brand-2));
+    color: #04130d; font-weight: 800; display: grid; place-items: center; font-size: 14px;
+  }
+  .cook-step .body { padding-top: 3px; font-size: 15px; line-height: 1.55; }
+  .cook-step .body small { color: var(--muted); display: block; margin-top: 3px; }
+  .tips { background: rgba(43,179,255,.08); border: 1px solid rgba(43,179,255,.25); border-radius: 12px; padding: 14px 16px; margin-top: 10px; }
+  .tips h4 { font-size: 13px; text-transform: uppercase; letter-spacing: .1em; color: var(--brand-2); margin-bottom: 8px; }
+  .tips li { font-size: 14px; color: #c4cedb; margin-left: 18px; margin-bottom: 5px; }
+
+  /* Misc */
+  .hidden { display: none !important; }
+  .spinner { display: inline-block; width: 16px; height: 16px; border: 2px solid rgba(255,255,255,.3); border-top-color: #04130d; border-radius: 50%; animation: spin .7s linear infinite; vertical-align: -3px; margin-right: 8px; }
+  @keyframes spin { to { transform: rotate(360deg); } }
+  .err { color: #ff7b72; font-size: 14px; margin-top: 12px; }
+  footer { text-align: center; color: var(--muted); font-size: 12px; margin-top: 30px; }
+  .saved-pct { color: var(--brand); font-weight: 700; }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <div class="logo"><span class="dot">🥗</span> Fridge <b>→</b> Feast</div>
+    <p class="tag">Stop buying groceries. Cook what's <b>already in your fridge</b>.</p>
+  </header>
+
+  <!-- STEP 1: scan -->
+  <section class="card" id="card-scan">
+    <div class="step-label"><span class="num">1</span> Scan your fridge</div>
+    <div class="drop" id="drop">
+      <div class="big">📸</div>
+      <p><b>Tap to take a photo</b> or upload a picture of your fridge / pantry</p>
+      <img class="preview" id="preview" alt="your fridge" />
+    </div>
+    <input type="file" id="file" accept="image/*" capture="environment" class="hidden" />
+    <div class="row">
+      <button class="btn-primary" id="scanBtn" disabled>Scan ingredients</button>
+    </div>
+    <div class="err hidden" id="scanErr"></div>
+  </section>
+
+  <!-- STEP 2: pick -->
+  <section class="card hidden" id="card-pick">
+    <div class="step-label"><span class="num">2</span> What do you want to use?</div>
+    <div class="chips" id="chips"></div>
+    <div class="add-row">
+      <input id="addInput" placeholder="Add something it missed…" />
+      <button class="btn-ghost" id="addBtn">Add</button>
+    </div>
+    <div class="row">
+      <button class="btn-primary" id="recipeBtn">Find recipes →</button>
+    </div>
+    <div class="err hidden" id="pickErr"></div>
+  </section>
+
+  <!-- STEP 3: recipes -->
+  <section class="card hidden" id="card-recipes">
+    <div class="step-label"><span class="num">3</span> Cook these tonight</div>
+    <div id="recipes"></div>
+  </section>
+
+  <!-- STEP 4: cook mode -->
+  <section class="card hidden cook" id="card-cook">
+    <div class="step-label"><span class="num">4</span> Cook mode</div>
+    <div id="cook"></div>
+    <div class="row">
+      <button class="btn-ghost" id="backBtn">← Back to recipes</button>
+    </div>
+  </section>
+
+  <footer>Powered by Gemini vision · built at Milpitas Hacks</footer>
+</div>
+
+<script>
+const $ = (id) => document.getElementById(id);
+let imageB64 = null, imageMime = "image/jpeg";
+let ingredients = [];          // [{name, on}]
+let lastRecipes = [];
+
+/* ---------- helpers ---------- */
+function show(id) { $(id).classList.remove("hidden"); $(id).scrollIntoView({behavior:"smooth", block:"start"}); }
+function busy(btn, label) { btn.dataset.html = btn.innerHTML; btn.disabled = true; btn.innerHTML = `<span class="spinner"></span>${label}`; }
+function unbusy(btn) { btn.disabled = false; btn.innerHTML = btn.dataset.html; }
+function err(id, msg) { const e = $(id); e.textContent = msg; e.classList.remove("hidden"); }
+function clearErr(id) { $(id).classList.add("hidden"); }
+
+async function api(path, body) {
+  const r = await fetch(path, { method: "POST", headers: {"Content-Type":"application/json"}, body: JSON.stringify(body) });
+  const data = await r.json();
+  if (!r.ok) throw new Error(data.detail || "Something went wrong");
+  return data;
+}
+
+/* ---------- step 1: image ---------- */
+$("drop").onclick = () => $("file").click();
+$("file").onchange = (e) => {
+  const f = e.target.files[0];
+  if (!f) return;
+  imageMime = f.type || "image/jpeg";
+  const reader = new FileReader();
+  reader.onload = () => {
+    const dataUrl = reader.result;
+    imageB64 = dataUrl.split(",")[1];
+    $("preview").src = dataUrl;
+    $("preview").style.display = "block";
+    $("scanBtn").disabled = false;
+  };
+  reader.readAsDataURL(f);
+};
+
+$("scanBtn").onclick = async () => {
+  clearErr("scanErr");
+  busy($("scanBtn"), "Looking inside…");
+  try {
+    const { ingredients: found } = await api("/api/detect", { image_base64: imageB64, mime_type: imageMime });
+    if (!found.length) throw new Error("Couldn't spot any ingredients — try a clearer photo.");
+    ingredients = found.map(name => ({ name, on: true }));
+    renderChips();
+    show("card-pick");
+  } catch (e) { err("scanErr", e.message); }
+  finally { unbusy($("scanBtn")); }
+};
+
+/* ---------- step 2: chips ---------- */
+function renderChips() {
+  $("chips").innerHTML = "";
+  ingredients.forEach((ing, i) => {
+    const c = document.createElement("div");
+    c.className = "chip" + (ing.on ? " on" : "");
+    c.textContent = ing.name;
+    c.onclick = () => { ing.on = !ing.on; renderChips(); };
+    $("chips").appendChild(c);
+  });
+}
+$("addBtn").onclick = () => {
+  const v = $("addInput").value.trim();
+  if (!v) return;
+  ingredients.push({ name: v, on: true });
+  $("addInput").value = "";
+  renderChips();
+};
+$("addInput").addEventListener("keydown", e => { if (e.key === "Enter") $("addBtn").click(); });
+
+$("recipeBtn").onclick = async () => {
+  clearErr("pickErr");
+  const picked = ingredients.filter(i => i.on).map(i => i.name);
+  if (!picked.length) return err("pickErr", "Select at least one ingredient.");
+  busy($("recipeBtn"), "Cooking up ideas…");
+  try {
+    const { recipes } = await api("/api/recipes", { ingredients: picked });
+    lastRecipes = recipes || [];
+    renderRecipes(picked);
+    show("card-recipes");
+  } catch (e) { err("pickErr", e.message); }
+  finally { unbusy($("recipeBtn")); }
+};
+
+/* ---------- step 3: recipes ---------- */
+function renderRecipes(picked) {
+  $("recipes").innerHTML = "";
+  lastRecipes.forEach((r, idx) => {
+    const missing = (r.missing || []).filter(Boolean);
+    const el = document.createElement("div");
+    el.className = "recipe";
+    el.innerHTML = `
+      <h3>${r.title}</h3>
+      <div class="meta">
+        <span>⏱ ${r.time_minutes || "?"} min</span>
+        <span>🔥 ${r.difficulty || "easy"}</span>
+        <span>${missing.length ? '<span class="pill need">needs '+missing.length+' extra</span>' : '<span class="pill have">100% from your fridge</span>'}</span>
+      </div>
+      <div class="desc">${r.description || ""}</div>
+      <div class="tags">${missing.map(m=>`<span class="pill need">+ ${m}</span>`).join("")}</div>
+    `;
+    el.onclick = () => openCook(r, picked);
+    $("recipes").appendChild(el);
+  });
+}
+
+/* ---------- step 4: cook mode ---------- */
+async function openCook(recipe, picked) {
+  show("card-cook");
+  $("cook").innerHTML = `<p style="color:var(--muted)"><span class="spinner"></span>Writing your step-by-step…</p>`;
+  try {
+    const d = await api("/api/steps", { title: recipe.title, ingredients: picked });
+    const ings = (d.ingredients || []).map(i => `<li><span>${i.item}</span><span>${i.amount||""}</span></li>`).join("");
+    const steps = (d.steps || []).map((s,i) => `
+      <div class="cook-step"><div class="n">${i+1}</div>
+      <div class="body">${s.instruction}${s.minutes?`<small>~${s.minutes} min</small>`:""}</div></div>`).join("");
+    const tips = (d.tips || []).map(t => `<li>${t}</li>`).join("");
+    $("cook").innerHTML = `
+      <div class="cook">
+        <h2>${d.title || recipe.title}</h2>
+        <div class="meta">🍽 ${d.servings||2} servings · ⏱ ${d.total_time_minutes||recipe.time_minutes||""} min</div>
+        <ul class="ing-list">${ings}</ul>
+        ${steps}
+        ${tips?`<div class="tips"><h4>Chef tips</h4><ul>${tips}</ul></div>`:""}
+      </div>`;
+  } catch (e) {
+    $("cook").innerHTML = `<p class="err">${e.message}</p>`;
+  }
+}
+$("backBtn").onclick = () => show("card-recipes");
+</script>
+</body>
+</html>
