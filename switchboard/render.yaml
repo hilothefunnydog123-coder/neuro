@@ -1,0 +1,30 @@
+# Render blueprint — deploys Switchboard as a free web service.
+# In Render: New + → Blueprint → pick this repo → set the secret env vars below.
+services:
+  - type: web
+    name: switchboard
+    runtime: python
+    rootDir: switchboard
+    plan: free
+    buildCommand: pip install -r requirements.txt
+    startCommand: uvicorn app:app --host 0.0.0.0 --port $PORT
+    envVars:
+      - key: CALL_PROVIDER
+        value: vapi
+      - key: DISCOVER_PROVIDER
+        value: mock          # flip to "places" once GOOGLE_PLACES_API_KEY is set
+      - key: GEMINI_MODEL
+        value: gemini-2.0-flash
+      - key: VAPI_VOICE
+        value: alloy
+      - key: VAPI_MODEL
+        value: gpt-4o
+      # --- secrets: set these in the Render dashboard, not in git ---
+      - key: GEMINI_API_KEY
+        sync: false
+      - key: VAPI_API_KEY
+        sync: false
+      - key: VAPI_PHONE_NUMBER_ID
+        sync: false
+      - key: GOOGLE_PLACES_API_KEY
+        sync: false
