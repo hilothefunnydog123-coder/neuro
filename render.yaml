@@ -1,12 +1,28 @@
-# One-click deploy config for Render (https://render.com).
-# In Render: New + > Blueprint > connect your repo > it reads this file.
+# Render blueprint — deploys the Switchboard app from the repo root.
 services:
   - type: web
-    name: yn-neuro-api
+    name: switchboard
     runtime: docker
     dockerfilePath: ./Dockerfile
     plan: free
     healthCheckPath: /health
     envVars:
-      - key: MODEL_CACHE_DIR
-        value: /app/checkpoints
+      - key: CALL_PROVIDER
+        value: vapi
+      - key: DISCOVER_PROVIDER
+        value: mock
+      - key: GEMINI_MODEL
+        value: gemini-2.0-flash
+      - key: VAPI_VOICE
+        value: alloy
+      - key: VAPI_MODEL
+        value: gpt-4o
+      # secrets — set these in the Render dashboard / env group, not in git
+      - key: GEMINI_API_KEY
+        sync: false
+      - key: VAPI_API_KEY
+        sync: false
+      - key: VAPI_PHONE_NUMBER_ID
+        sync: false
+      - key: GOOGLE_PLACES_API_KEY
+        sync: false
