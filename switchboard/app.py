@@ -57,6 +57,20 @@ VAPI_VOICE = os.environ.get("VAPI_VOICE", "alloy")
 VAPI_MODEL = os.environ.get("VAPI_MODEL", "gpt-4o")
 CALL_PROVIDER = os.environ.get("CALL_PROVIDER", "mock").lower()
 
+# Public base URL of THIS server, so Vapi can stream live transcript webhooks
+# back to us. Render sets RENDER_EXTERNAL_URL automatically.
+PUBLIC_BASE_URL = (
+    os.environ.get("PUBLIC_BASE_URL") or os.environ.get("RENDER_EXTERNAL_URL") or ""
+).rstrip("/")
+
+# language name -> (transcriber code) for multilingual calls
+LANG_CODES = {
+    "english": "en", "spanish": "es", "french": "fr", "german": "de",
+    "mandarin": "zh", "chinese": "zh", "cantonese": "zh", "vietnamese": "vi",
+    "hindi": "hi", "korean": "ko", "japanese": "ja", "tagalog": "tl",
+    "portuguese": "pt", "italian": "it", "russian": "ru", "arabic": "ar",
+}
+
 # Discovery: find local (often phone-only) businesses to call.
 GOOGLE_PLACES_API_KEY = os.environ.get("GOOGLE_PLACES_API_KEY", "")
 DISCOVER_PROVIDER = os.environ.get(
@@ -100,6 +114,9 @@ async def gemini_json(prompt: str) -> dict:
 # --------------------------------------------------------------------------- #
 # In-memory store of mock calls so we can simulate a live transcript.
 _MOCK_CALLS: Dict[str, dict] = {}
+
+# Live transcript accumulated from Vapi webhooks: call_id -> {turns:[...], done:bool}
+_VAPI_LIVE: Dict[str, dict] = {}
 
 _MOCK_SCRIPT = [
     ("assistant", "Hi! I'm calling to book a table for four people tonight at 7pm. Do you have availability?"),
@@ -154,7 +171,7 @@ async def bland_status(call_id: str) -> dict:
     return {"status": "completed" if done else "in-progress", "transcript": turns}
 
 
-async def vapi_start(number: str, task: str, first_line: str) -> str:
+async def vapi_start(number: str, task: str, first_line: str, language: str = "") -> str:
     if not VAPI_API_KEY:
         raise HTTPException(503, "VAPI_API_KEY not set. Use CALL_PROVIDER=mock to demo offline.")
     if not VAPI_PHONE_NUMBER_ID:
@@ -163,6 +180,8 @@ async def vapi_start(number: str, task: str, first_line: str) -> str:
             "VAPI_PHONE_NUMBER_ID not set. Create/import a number in the Vapi dashboard "
             "and put its id in .env.",
         )
+    lang = (language or "English").strip()
+    multilingual = lang.lower() not in ("", "english", "en", "auto")
     system_prompt = (
         "You are a warm, natural-sounding person making a phone call on someone's "
         "behalf. You are NOT a robot reading a script — you are having a real, "
@@ -181,19 +200,37 @@ async def vapi_start(number: str, task: str, first_line: str) -> str:
         "Sound like a relaxed, polite human — use natural phrases like \"sure\", \"got it\", "
         "\"perfect\", \"no problem\". Do not mention that you are an AI unless you are asked directly."
     )
+    if multilingual:
+        system_prompt += (
+            f"\n\nIMPORTANT: Conduct this ENTIRE phone call in {lang}. Speak only {lang} "
+            f"the whole time, like a native {lang} speaker."
+        )
+    assistant = {
+        "model": {
+            "provider": "openai",
+            "model": VAPI_MODEL,
+            "temperature": 0.7,
+            "messages": [{"role": "system", "content": system_prompt}],
+        },
+        "voice": {"provider": "openai", "voiceId": VAPI_VOICE},
+    }
+    if multilingual:
+        # let the model open in the target language, and transcribe the callee in it too
+        assistant["firstMessageMode"] = "assistant-speaks-first-with-model-generated-message"
+        assistant["transcriber"] = {
+            "provider": "deepgram", "model": "nova-2",
+            "language": LANG_CODES.get(lang.lower(), "en"),
+        }
+    else:
+        assistant["firstMessage"] = first_line or "Hi there!"
+    # stream live transcript back to us if we know our public URL
+    if PUBLIC_BASE_URL:
+        assistant["serverUrl"] = f"{PUBLIC_BASE_URL}/api/vapi/webhook"
+        assistant["serverMessages"] = ["transcript", "status-update", "end-of-call-report"]
     body = {
         "phoneNumberId": VAPI_PHONE_NUMBER_ID,
         "customer": {"number": number},
-        "assistant": {
-            "firstMessage": first_line or "Hi there!",
-            "model": {
-                "provider": "openai",
-                "model": VAPI_MODEL,
-                "temperature": 0.7,
-                "messages": [{"role": "system", "content": system_prompt}],
-            },
-            "voice": {"provider": "openai", "voiceId": VAPI_VOICE},
-        },
+        "assistant": assistant,
     }
     async with httpx.AsyncClient(timeout=30) as client:
         r = await client.post(
@@ -210,6 +247,12 @@ async def vapi_start(number: str, task: str, first_line: str) -> str:
 
 
 async def vapi_status(call_id: str) -> dict:
+    # Prefer the live webhook stream if we've started receiving it — that's what
+    # makes the transcript type out word-by-word during the call.
+    live = _VAPI_LIVE.get(call_id)
+    if live and live["turns"] and not live["done"]:
+        return {"status": "in-progress", "transcript": live["turns"]}
+
     async with httpx.AsyncClient(timeout=30) as client:
         r = await client.get(
             f"https://api.vapi.ai/call/{call_id}",
@@ -233,6 +276,11 @@ async def vapi_status(call_id: str) -> dict:
             "text": text,
         })
     done = d.get("status") == "ended"
+    # If the GET hasn't populated the transcript yet but our webhook captured it, use that.
+    if not turns and live and live["turns"]:
+        turns = live["turns"]
+    if live and live["done"]:
+        done = True
     return {"status": "completed" if done else "in-progress", "transcript": turns}
 
 
@@ -329,6 +377,7 @@ class CallRequest(BaseModel):
     label: str = ""            # e.g. business name, for the comparison table
     record: bool = False
     provider: Optional[str] = None  # override CALL_PROVIDER per call ("mock"/"bland")
+    language: str = ""              # e.g. "Spanish" — conduct the call in this language
 
 
 class ExtractRequest(BaseModel):
@@ -411,7 +460,7 @@ async def call(req: CallRequest):
     if provider == "mock":
         cid = mock_start(req.number, task)
     elif provider == "vapi":
-        cid = await vapi_start(req.number, task, req.first_line)
+        cid = await vapi_start(req.number, task, req.first_line, req.language)
     else:
         cid = await bland_start(req.number, task, req.first_line, req.record)
 
@@ -428,6 +477,32 @@ async def call_status(provider: str, call_id: str):
     return await bland_status(call_id)
 
 
+@app.post("/api/vapi/webhook")
+async def vapi_webhook(payload: dict):
+    """Vapi posts live events here. We accumulate the transcript per call so the
+    dashboard can stream it word-by-word while the call is still happening."""
+    msg = payload.get("message") or {}
+    call_id = (msg.get("call") or payload.get("call") or {}).get("id")
+    if not call_id:
+        return {"ok": True}
+    live = _VAPI_LIVE.setdefault(call_id, {"turns": [], "done": False})
+    mtype = msg.get("type")
+
+    if mtype == "transcript" and msg.get("transcriptType") == "final":
+        text = (msg.get("transcript") or "").strip()
+        if text:
+            role = (msg.get("role") or "").lower()
+            live["turns"].append({
+                "speaker": "assistant" if role in ("assistant", "bot") else "caller",
+                "text": text,
+            })
+    elif mtype == "status-update" and msg.get("status") == "ended":
+        live["done"] = True
+    elif mtype == "end-of-call-report":
+        live["done"] = True
+    return {"ok": True}
+
+
 @app.post("/api/extract")
 async def extract(req: ExtractRequest):
     """Read a finished transcript into a structured result for the table."""
@@ -435,10 +510,13 @@ async def extract(req: ExtractRequest):
     prompt = (
         f"Objective of the call: {req.objective}\n"
         f"Questions we wanted answered: {q}\n"
-        f"Full transcript:\n{req.transcript}\n\n"
-        "Summarise the outcome. Respond as JSON: {"
+        f"Full transcript (may be in another language):\n{req.transcript}\n\n"
+        "Summarise the outcome FOR THE USER, always in English even if the call "
+        "was in another language. Respond as JSON: {"
         '"success": true/false, '
-        '"summary": "one short sentence on what happened", '
+        '"summary": "2-3 sentence recap of how the call went", '
+        '"result": "the single bottom-line outcome in one short line, e.g. '
+        '\'Booked for 7pm under Alex\' or \'$45, available tomorrow 9am\'", '
         '"answers": {"<question topic>": "<answer or \'unknown\'>"}, '
         '"price": "price if mentioned else null", '
         '"availability": "availability if mentioned else null"'
@@ -446,7 +524,8 @@ async def extract(req: ExtractRequest):
     )
     result = await gemini_json(prompt)
     if not result:
-        result = {"success": True, "summary": "Call completed.", "answers": {},
+        result = {"success": True, "summary": "Call completed.",
+                  "result": "Call completed.", "answers": {},
                   "price": None, "availability": None}
     return result
 

@@ -68,6 +68,17 @@
   .two{display:flex;gap:12px;align-items:flex-end}.two>div:first-child{flex:1}
   .num-row{display:flex;gap:8px;margin-bottom:8px}.num-row input{flex:1}
 
+  .ta-wrap{position:relative}
+  .mic{position:absolute;right:10px;bottom:10px;width:38px;height:38px;padding:0;border-radius:10px;
+    background:var(--panel3);border:1px solid var(--line2);font-size:16px;line-height:1;display:grid;place-items:center}
+  .mic:hover{border-color:var(--brand)}
+  .mic.listening{background:var(--brand);border-color:var(--brand);animation:micpulse 1s infinite}
+  @keyframes micpulse{0%,100%{box-shadow:0 0 0 0 rgba(99,102,241,.5)}50%{box-shadow:0 0 0 8px rgba(99,102,241,0)}}
+  .langrow{display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-top:11px}
+  .langlbl{font-size:12.5px;font-weight:600;color:var(--muted)}
+  #lang{width:auto;padding:9px 12px;font-size:13.5px;cursor:pointer}
+  .langhint{font-size:11.5px;color:var(--faint);flex:1;min-width:160px}
+
   button{font:inherit;font-weight:600;cursor:pointer;border:none;border-radius:11px;
     padding:13px 18px;transition:.15s;letter-spacing:0}
   .btn-primary{background:linear-gradient(180deg,var(--brand),var(--brand-d));color:#fff;width:100%;
@@ -114,7 +125,10 @@
   .bubble.assistant{align-self:flex-start;background:linear-gradient(180deg,rgba(99,102,241,.18),rgba(99,102,241,.1));border:1px solid rgba(99,102,241,.28);border-bottom-left-radius:4px}
   .bubble.caller{align-self:flex-end;background:var(--panel3);border:1px solid var(--line);border-bottom-right-radius:4px}
   .bubble .lbl{display:block;font-size:9.5px;text-transform:uppercase;letter-spacing:.1em;color:var(--faint);margin-bottom:4px;font-weight:600}
-  .result{margin-top:13px;padding:12px 15px;border-radius:11px;background:rgba(52,211,153,.07);border:1px solid rgba(52,211,153,.22);font-size:14px}
+  .result{margin-top:13px;padding:13px 15px;border-radius:11px;background:rgba(52,211,153,.07);border:1px solid rgba(52,211,153,.22);font-size:14px}
+  .res-head{font-weight:700;font-size:14.5px;color:var(--good)}
+  .res-sum{color:var(--muted);font-size:13px;margin-top:6px;line-height:1.5}
+  .res-bits{margin-top:8px;font-size:13px;font-weight:600;color:var(--text)}
 
   /* table */
   table{width:100%;border-collapse:collapse;margin-top:6px;font-size:14px}
@@ -154,7 +168,25 @@
     </div>
 
     <label>What do you need done?</label>
-    <textarea id="task" rows="2" placeholder="e.g. Find the cheapest oil change and the soonest appointment"></textarea>
+    <div class="ta-wrap">
+      <textarea id="task" rows="2" placeholder="e.g. Find the cheapest oil change and the soonest appointment"></textarea>
+      <button id="micBtn" class="mic" type="button" title="Speak your request">🎙️</button>
+    </div>
+    <div class="langrow">
+      <span class="langlbl">Call in</span>
+      <select id="lang">
+        <option value="">English</option>
+        <option value="Spanish">Spanish 🇪🇸</option>
+        <option value="Vietnamese">Vietnamese 🇻🇳</option>
+        <option value="Mandarin">Mandarin 🇨🇳</option>
+        <option value="Hindi">Hindi 🇮🇳</option>
+        <option value="Tagalog">Tagalog 🇵🇭</option>
+        <option value="Korean">Korean 🇰🇷</option>
+        <option value="French">French 🇫🇷</option>
+        <option value="Portuguese">Portuguese 🇵🇹</option>
+      </select>
+      <span class="langhint">The AI speaks their language — your summary comes back in English.</span>
+    </div>
 
     <div id="discoverPanel" class="hidden">
       <div class="two">
@@ -218,6 +250,31 @@ async function api(path,body){
 }
 function err(m){const e=$("#err");e.textContent=m;e.classList.remove("hidden");}
 
+/* ---------- voice input (speak your request) ---------- */
+(function(){
+  const micBtn=$("#micBtn");
+  const SR=window.SpeechRecognition||window.webkitSpeechRecognition;
+  if(!SR){micBtn.onclick=()=>err("Voice input needs Chrome or Edge — just type your request instead.");return;}
+  let rec=null,listening=false;
+  micBtn.onclick=()=>{
+    if(listening){rec&&rec.stop();return;}
+    rec=new SR();rec.lang="en-US";rec.interimResults=true;rec.continuous=false;
+    let final="";
+    rec.onstart=()=>{listening=true;micBtn.classList.add("listening");};
+    rec.onresult=(e)=>{
+      let interim="";
+      for(let i=e.resultIndex;i<e.results.length;i++){
+        const t=e.results[i][0].transcript;
+        e.results[i].isFinal?final+=t:interim+=t;
+      }
+      $("#task").value=(final+interim).trim();
+    };
+    rec.onerror=()=>{};
+    rec.onend=()=>{listening=false;micBtn.classList.remove("listening");};
+    rec.start();
+  };
+})();
+
 $("#findBtn").onclick=async()=>{
   const query=$("#task").value.trim();
   if(!query)return err("Type what you're looking for first (e.g. 'oil change').");
@@ -279,7 +336,7 @@ $("#goBtn").onclick=async()=>{
 };
 
 async function startCall(number,label){
-  const d=await api("/api/call",{number,objective:plan.objective,questions:plan.questions,first_line:plan.first_line,label});
+  const d=await api("/api/call",{number,objective:plan.objective,questions:plan.questions,first_line:plan.first_line,label,language:$("#lang").value});
   const card=document.createElement("div");card.className="callcard live";card.id="c-"+d.call_id;
   card.innerHTML=`<div class="ch"><div class="who">${label} · ${number}</div>
     <span class="status live"><span class="pulse"></span>ringing…</span></div>
@@ -309,7 +366,12 @@ async function extract(c){
     const res=await api("/api/extract",{objective:plan.objective,questions:plan.questions,transcript:c.transcript});
     c.result=res;
     const bits=[res.price&&`💰 ${res.price}`,res.availability&&`📅 ${res.availability}`].filter(Boolean).join(" · ");
-    document.getElementById("r-"+c.call_id).innerHTML=`<div class="result"><b>${res.success?"✓":"–"} ${res.summary}</b>${bits?"<br>"+bits:""}</div>`;
+    const headline=res.result||res.summary||"Call completed";
+    document.getElementById("r-"+c.call_id).innerHTML=`<div class="result">
+      <div class="res-head">${res.success?"✓":"–"} ${headline}</div>
+      ${res.summary&&res.summary!==headline?`<div class="res-sum">${res.summary}</div>`:""}
+      ${bits?`<div class="res-bits">${bits}</div>`:""}
+    </div>`;
   }catch(e){}
 }
 
