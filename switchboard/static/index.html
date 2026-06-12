@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-<title>Switchboard — the AI that makes your calls</title>
+<title>Switchboard — search the phone-only economy</title>
 <style>
   :root{
     --bg:#0a0e14; --panel:#121823; --panel2:#1a2230; --line:#28313f;
@@ -17,11 +17,11 @@
     background:radial-gradient(1100px 520px at 50% -10%,#1b1740 0%,var(--bg) 55%);
     color:var(--text);min-height:100vh;padding:30px 16px 90px;
   }
-  .wrap{max-width:820px;margin:0 auto}
-  header{text-align:center;margin-bottom:26px}
+  .wrap{max-width:840px;margin:0 auto}
+  header{text-align:center;margin-bottom:24px}
   .logo{display:inline-flex;align-items:center;gap:10px;font-weight:800;font-size:27px;letter-spacing:-.5px}
   .logo b{background:linear-gradient(90deg,var(--brand),var(--brand2));-webkit-background-clip:text;background-clip:text;color:transparent}
-  .tag{color:var(--muted);margin-top:8px;font-size:15px}
+  .tag{color:var(--muted);margin-top:8px;font-size:15px;line-height:1.5}
   .tag b{color:var(--text)}
   .demo-badge{display:inline-block;margin-top:10px;font-size:12px;font-weight:700;
     padding:5px 12px;border-radius:999px;background:rgba(124,92,255,.15);color:#b6a4ff;border:1px solid rgba(124,92,255,.3)}
@@ -39,13 +39,12 @@
   input,textarea{width:100%;background:var(--panel2);border:1px solid var(--line);border-radius:12px;
     padding:13px 14px;color:var(--text);font:inherit;resize:vertical}
   input:focus,textarea:focus{outline:none;border-color:var(--brand)}
-  .num-row{display:flex;gap:8px;margin-bottom:8px}
-  .num-row input{flex:1}
-  .num-row button{flex:none}
+  .two{display:flex;gap:10px}.two>*{flex:1}
+  .num-row{display:flex;gap:8px;margin-bottom:8px}.num-row input{flex:1}
 
   button{font:inherit;font-weight:700;cursor:pointer;border:none;border-radius:12px;
     padding:13px 20px;transition:.15s;color:#0a0e14}
-  .btn-primary{background:linear-gradient(90deg,var(--brand),var(--brand2));width:100%;margin-top:18px;font-size:15px}
+  .btn-primary{background:linear-gradient(90deg,var(--brand),var(--brand2));width:100%;margin-top:16px;font-size:15px}
   .btn-primary:hover{filter:brightness(1.07);transform:translateY(-1px)}
   .btn-ghost{background:var(--panel2);color:var(--text);border:1px solid var(--line)}
   .btn-ghost:hover{border-color:var(--brand)}
@@ -56,13 +55,28 @@
   .plan .obj{font-size:15px;margin-bottom:10px}
   .plan ul{margin-left:18px}.plan li{font-size:14px;color:#cdd7e3;margin-bottom:4px}
 
+  /* discovered business cards */
+  .biz{display:flex;align-items:center;gap:12px;background:var(--panel2);border:1px solid var(--line);
+    border-radius:12px;padding:12px 14px;margin-bottom:8px;cursor:pointer;transition:.15s}
+  .biz:hover{border-color:var(--brand)}
+  .biz.on{border-color:var(--brand);background:rgba(124,92,255,.12)}
+  .biz .check{flex:none;width:22px;height:22px;border-radius:6px;border:2px solid var(--line);
+    display:grid;place-items:center;font-size:13px;color:#0a0e14}
+  .biz.on .check{background:var(--brand);border-color:var(--brand)}
+  .biz .info{flex:1;min-width:0}
+  .biz .name{font-weight:700;font-size:15px}
+  .biz .sub{font-size:12px;color:var(--muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .badge{font-size:10px;font-weight:700;padding:3px 8px;border-radius:999px;white-space:nowrap}
+  .badge.phone{background:rgba(251,191,36,.16);color:var(--warn)}
+  .badge.web{background:rgba(138,152,171,.14);color:var(--muted)}
+
   /* call cards */
   .calls{display:grid;gap:14px;margin-top:4px}
-  .callcard{background:var(--panel);border:1px solid var(--line);border-radius:14px;padding:16px;margin-bottom:0}
+  .callcard{background:var(--panel);border:1px solid var(--line);border-radius:14px;padding:16px}
   .callcard.live{border-color:var(--brand)}
-  .ch{display:flex;align-items:center;justify-content:space-between;margin-bottom:10px}
+  .ch{display:flex;align-items:center;justify-content:space-between;margin-bottom:10px;gap:8px}
   .ch .who{font-weight:700;font-size:15px}
-  .status{font-size:12px;font-weight:700;padding:4px 10px;border-radius:999px;display:inline-flex;align-items:center;gap:6px}
+  .status{font-size:12px;font-weight:700;padding:4px 10px;border-radius:999px;display:inline-flex;align-items:center;gap:6px;white-space:nowrap}
   .status.live{background:rgba(251,191,36,.15);color:var(--warn)}
   .status.done{background:rgba(52,211,153,.15);color:var(--good)}
   .pulse{width:7px;height:7px;border-radius:50%;background:currentColor;animation:pulse 1s infinite}
@@ -75,7 +89,7 @@
   .result{margin-top:12px;padding:11px 14px;border-radius:12px;background:rgba(52,211,153,.08);border:1px solid rgba(52,211,153,.25);font-size:14px}
 
   /* comparison table */
-  table{width:100%;border-collapse:collapse;margin-top:16px;font-size:14px}
+  table{width:100%;border-collapse:collapse;margin-top:8px;font-size:14px}
   th,td{text-align:left;padding:11px 12px;border-bottom:1px solid var(--line)}
   th{color:var(--muted);font-size:12px;text-transform:uppercase;letter-spacing:.08em}
   tr.best td{background:rgba(52,211,153,.08)}
@@ -86,7 +100,7 @@
     border-top-color:#0a0e14;border-radius:50%;animation:spin .7s linear infinite;vertical-align:-2px;margin-right:7px}
   @keyframes spin{to{transform:rotate(360deg)}}
   .err{color:var(--bad);font-size:14px;margin-top:12px}
-  .hint{font-size:12px;color:var(--muted);margin-top:6px}
+  .hint{font-size:12px;color:var(--muted);margin-top:6px;line-height:1.5}
   footer{text-align:center;color:var(--muted);font-size:12px;margin-top:30px}
 </style>
 </head>
@@ -94,27 +108,38 @@
 <div class="wrap">
   <header>
     <div class="logo">☎️ Switch<b>board</b></div>
-    <p class="tag">The dread isn't one call. It's calling <b>five places</b>. We'll make them all.</p>
-    <span class="demo-badge" id="demoBadge">● checking provider…</span>
+    <p class="tag">Half the local economy has <b>no website</b>. The only way to get a price is to call —<br>so we call them <b>all at once</b> and hand you the cheapest.</p>
+    <span class="demo-badge" id="demoBadge">● checking…</span>
   </header>
 
   <section class="card">
     <div class="modes">
-      <div class="mode on" data-mode="single" id="m-single">📞 Do it for me<small>one task, one call</small></div>
-      <div class="mode" data-mode="around" id="m-around">🔀 Call around<small>compare many at once</small></div>
+      <div class="mode on" data-mode="single">📞 Do it for me<small>one task, one call</small></div>
+      <div class="mode" data-mode="around">🔀 Call around<small>find & compare many</small></div>
     </div>
 
     <label>What do you need done?</label>
-    <textarea id="task" rows="2" placeholder="e.g. Book a table for 4 tonight at 7 under the name Alex"></textarea>
-    <button class="btn-ghost" id="planBtn" style="margin-top:10px;width:100%">✨ Plan the call</button>
-    <div id="planBox"></div>
+    <textarea id="task" rows="2" placeholder="e.g. Find the cheapest oil change and the soonest appointment"></textarea>
 
-    <div id="numbers">
-      <label id="numLabel">Number to call</label>
-      <div class="num-row"><input class="num" placeholder="+1 408 555 0100" /></div>
-      <p class="hint" id="aroundHint" style="display:none">Add a number for each place — they'll all be called at the same time.</p>
-      <button class="btn-ghost hidden" id="addNum">+ add another number</button>
+    <!-- DISCOVERY (around mode only) -->
+    <div id="discoverPanel" class="hidden">
+      <div class="two">
+        <div><label>Near where?</label><input id="loc" placeholder="Milpitas, CA" value="Milpitas, CA"/></div>
+        <div style="flex:none;display:flex;align-items:flex-end"><button class="btn-ghost" id="findBtn" style="height:46px">🔎 Find places to call</button></div>
+      </div>
+      <p class="hint" id="discoverHint">We surface the <b style="color:var(--warn)">phone-only</b> shops first — the ones you can't price online anywhere else.</p>
+      <div id="bizList"></div>
     </div>
+
+    <!-- single-mode number -->
+    <div id="singleNum">
+      <label>Number to call</label>
+      <div class="num-row"><input class="num" placeholder="+1 408 555 0100"/></div>
+      <p class="hint">Tip: for a live demo, put a judge's own number here — they'll hear the AI talk to them.</p>
+    </div>
+
+    <button class="btn-ghost" id="planBtn" style="margin-top:12px;width:100%">✨ Preview the call plan</button>
+    <div id="planBox"></div>
 
     <button class="btn-primary" id="goBtn">📲 Make the call</button>
     <div class="err hidden" id="err"></div>
@@ -123,50 +148,72 @@
   <div class="calls" id="calls"></div>
 
   <section class="card hidden" id="tableCard">
-    <h4 style="font-size:12px;text-transform:uppercase;letter-spacing:.1em;color:var(--brand2);margin-bottom:4px">Results — ranked for you</h4>
+    <h4 style="font-size:12px;text-transform:uppercase;letter-spacing:.1em;color:var(--brand2);margin-bottom:6px">📊 Results — ranked for you</h4>
     <div id="table"></div>
+    <button class="btn-primary hidden" id="bookBtn">📅 Book the best one for me</button>
   </section>
 
-  <footer>Switchboard · built at Milpitas Hacks · calls placed with consent only</footer>
+  <footer>Switchboard · a search engine for the phone-only economy · calls placed with consent only</footer>
 </div>
 
 <script>
 const $=s=>document.querySelector(s), $$=s=>document.querySelectorAll(s);
 let mode="single", plan=null, provider="mock";
+let discovered=[];           // [{name,number,website,phone_only, selected}]
+let lastWinner=null;
 
-/* provider badge */
 fetch("/health").then(r=>r.json()).then(d=>{
   provider=d.provider;
   const b=$("#demoBadge");
-  if(provider==="mock"){b.textContent="● DEMO MODE — scripted call, no phone dialed";}
-  else{b.textContent="● LIVE — real calls via "+provider;b.style.color="#34d399";b.style.background="rgba(52,211,153,.12)";b.style.borderColor="rgba(52,211,153,.3)";}
+  const dp=d.discover_provider==="places"?"live business search":"demo business list";
+  if(provider==="mock"){b.textContent=`● DEMO MODE — scripted call · ${dp}`;}
+  else{b.textContent=`● LIVE calls via ${provider} · ${dp}`;b.style.color="#34d399";b.style.background="rgba(52,211,153,.12)";b.style.borderColor="rgba(52,211,153,.3)";}
 });
 
-/* mode toggle */
 $$(".mode").forEach(m=>m.onclick=()=>{
-  $$(".mode").forEach(x=>x.classList.remove("on")); m.classList.add("on");
+  $$(".mode").forEach(x=>x.classList.remove("on"));m.classList.add("on");
   mode=m.dataset.mode;
   const around=mode==="around";
-  $("#numLabel").textContent=around?"Numbers to call (one per place)":"Number to call";
-  $("#addNum").classList.toggle("hidden",!around);
-  $("#aroundHint").style.display=around?"block":"none";
-  $("#goBtn").textContent=around?"📲 Call them all":"📲 Make the call";
+  $("#discoverPanel").classList.toggle("hidden",!around);
+  $("#singleNum").classList.toggle("hidden",around);
+  $("#goBtn").textContent=around?"📲 Call everyone selected":"📲 Make the call";
 });
-
-$("#addNum").onclick=()=>{
-  const d=document.createElement("div");d.className="num-row";
-  d.innerHTML=`<input class="num" placeholder="+1 408 555 0100"/>`;
-  $("#numbers").insertBefore(d,$("#aroundHint"));
-};
 
 async function api(path,body){
   const r=await fetch(path,{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify(body)});
-  const d=await r.json(); if(!r.ok)throw new Error(d.detail||"error"); return d;
+  const d=await r.json();if(!r.ok)throw new Error(d.detail||"error");return d;
+}
+function err(m){const e=$("#err");e.textContent=m;e.classList.remove("hidden");}
+
+/* ---------- discovery ---------- */
+$("#findBtn").onclick=async()=>{
+  const query=$("#task").value.trim();
+  if(!query)return err("Type what you're looking for first (e.g. 'oil change').");
+  $("#err").classList.add("hidden");
+  $("#findBtn").disabled=true;$("#findBtn").innerHTML='<span class="spinner"></span>Searching…';
+  try{
+    const {businesses}=await api("/api/discover",{query,location:$("#loc").value.trim(),limit:5});
+    discovered=businesses.map(b=>({...b,selected:b.phone_only}));  // default-select phone-only
+    renderBiz();
+  }catch(e){err(e.message);}
+  finally{$("#findBtn").disabled=false;$("#findBtn").textContent="🔎 Find places to call";}
+};
+function renderBiz(){
+  $("#bizList").innerHTML=discovered.map((b,i)=>`
+    <div class="biz ${b.selected?'on':''}" data-i="${i}">
+      <div class="check">${b.selected?'✓':''}</div>
+      <div class="info">
+        <div class="name">${b.name}</div>
+        <div class="sub">${b.number}${b.rating?` · ★ ${b.rating}`:''}${b.address?` · ${b.address}`:''}</div>
+      </div>
+      <span class="badge ${b.phone_only?'phone':'web'}">${b.phone_only?'📵 phone-only':'🌐 has website'}</span>
+    </div>`).join("");
+  $$(".biz").forEach(el=>el.onclick=()=>{const i=+el.dataset.i;discovered[i].selected=!discovered[i].selected;renderBiz();});
 }
 
-/* plan */
+/* ---------- plan ---------- */
 $("#planBtn").onclick=async()=>{
-  const task=$("#task").value.trim(); if(!task)return;
+  const task=$("#task").value.trim();if(!task)return;
   $("#planBtn").disabled=true;$("#planBtn").innerHTML='<span class="spinner"></span>Planning…';
   try{
     plan=await api("/api/plan",{task});
@@ -177,29 +224,31 @@ $("#planBtn").onclick=async()=>{
   finally{$("#planBtn").disabled=false;$("#planBtn").textContent="✨ Re-plan the call";}
 };
 
-function err(m){const e=$("#err");e.textContent=m;e.classList.remove("hidden");}
-
-/* go */
+/* ---------- go ---------- */
+function collectTargets(){
+  if(mode==="single"){
+    const n=$("#singleNum .num").value.trim();
+    return n?[{number:n,label:"Your call"}]:[];
+  }
+  return discovered.filter(b=>b.selected).map(b=>({number:b.number,label:b.name}));
+}
 $("#goBtn").onclick=async()=>{
   $("#err").classList.add("hidden");
   const task=$("#task").value.trim();
-  const nums=[...$$(".num")].map(i=>i.value.trim()).filter(Boolean);
   if(!task)return err("Tell me what you need done first.");
-  if(!nums.length)return err("Add at least one number to call.");
+  const targets=collectTargets();
+  if(!targets.length)return err(mode==="single"?"Add a number to call.":"Select at least one place (or run a search first).");
   if(!plan){try{plan=await api("/api/plan",{task});}catch(e){return err(e.message);}}
 
-  $("#calls").innerHTML=""; $("#tableCard").classList.add("hidden"); $("#table").innerHTML="";
+  $("#calls").innerHTML="";$("#tableCard").classList.add("hidden");$("#table").innerHTML="";$("#bookBtn").classList.add("hidden");
   $("#goBtn").disabled=true;
-
-  const calls=await Promise.all(nums.map((n,i)=>startCall(n,i)));
-  // poll all in parallel
+  const calls=await Promise.all(targets.map(t=>startCall(t.number,t.label)));
   await Promise.all(calls.map(c=>pollCall(c)));
-  if(mode==="around"&&calls.length>1) buildTable(calls);
+  if(mode==="around"&&calls.length>1)buildTable(calls);
   $("#goBtn").disabled=false;
 };
 
-async function startCall(number,i){
-  const label=mode==="around"?`Place ${i+1}`:"Your call";
+async function startCall(number,label){
   const d=await api("/api/call",{number,objective:plan.objective,questions:plan.questions,first_line:plan.first_line,label});
   const card=document.createElement("div");card.className="callcard live";card.id="c-"+d.call_id;
   card.innerHTML=`<div class="ch"><div class="who">${label} · ${number}</div>
@@ -208,49 +257,57 @@ async function startCall(number,i){
   $("#calls").appendChild(card);
   return {...d,number,label,card};
 }
-
 async function pollCall(c){
   const tEl=document.getElementById("t-"+c.call_id);
   while(true){
-    const s=await (await fetch(`/api/call/${c.provider}/${c.call_id}`)).json();
+    const s=await(await fetch(`/api/call/${c.provider}/${c.call_id}`)).json();
     tEl.innerHTML=(s.transcript||[]).map(t=>
       `<div class="bubble ${t.speaker}"><span class="lbl">${t.speaker==="assistant"?"Switchboard AI":"Them"}</span>${t.text}</div>`).join("");
     tEl.scrollTop=tEl.scrollHeight;
     if(s.status==="completed"){
-      const card=c.card;card.classList.remove("live");
-      card.querySelector(".status").className="status done";
-      card.querySelector(".status").textContent="✓ done";
+      c.card.classList.remove("live");
+      c.card.querySelector(".status").className="status done";
+      c.card.querySelector(".status").textContent="✓ done";
       c.transcript=(s.transcript||[]).map(t=>`${t.speaker}: ${t.text}`).join("\n");
-      await extract(c);
-      return;
+      await extract(c);return;
     }
     await new Promise(r=>setTimeout(r,1200));
   }
 }
-
 async function extract(c){
   try{
     const res=await api("/api/extract",{objective:plan.objective,questions:plan.questions,transcript:c.transcript});
     c.result=res;
     const bits=[res.price&&`💰 ${res.price}`,res.availability&&`📅 ${res.availability}`].filter(Boolean).join(" · ");
-    document.getElementById("r-"+c.call_id).innerHTML=
-      `<div class="result"><b>${res.success?"✓":"–"} ${res.summary}</b>${bits?"<br>"+bits:""}</div>`;
-  }catch(e){/* leave transcript only */}
+    document.getElementById("r-"+c.call_id).innerHTML=`<div class="result"><b>${res.success?"✓":"–"} ${res.summary}</b>${bits?"<br>"+bits:""}</div>`;
+  }catch(e){}
 }
 
+/* ---------- comparison + book the winner ---------- */
 function buildTable(calls){
   const rows=calls.filter(c=>c.result);
-  // naive "best" = first with a price, else first success
-  let best=rows.find(c=>c.result.price)||rows.find(c=>c.result.success);
-  const html=`<table><thead><tr><th>Place</th><th>Outcome</th><th>Price</th><th>Availability</th></tr></thead>
+  let best=rows.find(c=>c.result.price)||rows.find(c=>c.result.success)||rows[0];
+  lastWinner=best;
+  $("#table").innerHTML=`<table><thead><tr><th>Place</th><th>Outcome</th><th>Price</th><th>Availability</th></tr></thead>
     <tbody>${rows.map(c=>`<tr class="${c===best?'best':''}">
       <td>${c.label} ${c===best?'<span class="winner">★ best</span>':''}</td>
-      <td>${c.result.summary||""}</td>
-      <td>${c.result.price||"—"}</td>
-      <td>${c.result.availability||"—"}</td></tr>`).join("")}</tbody></table>`;
-  $("#table").innerHTML=html; $("#tableCard").classList.remove("hidden");
+      <td>${c.result.summary||""}</td><td>${c.result.price||"—"}</td><td>${c.result.availability||"—"}</td></tr>`).join("")}</tbody></table>`;
+  $("#tableCard").classList.remove("hidden");
+  if(best){$("#bookBtn").classList.remove("hidden");$("#bookBtn").textContent=`📅 Book ${best.label} for me`;}
   $("#tableCard").scrollIntoView({behavior:"smooth"});
 }
+$("#bookBtn").onclick=async()=>{
+  if(!lastWinner)return;
+  $("#bookBtn").disabled=true;$("#bookBtn").innerHTML='<span class="spinner"></span>Calling back to book…';
+  const bookPlan={objective:`Call ${lastWinner.label} back and book/confirm the appointment we discussed: ${plan.objective}`,
+    questions:["Confirm the booking is set","Get a confirmation name or time"],
+    first_line:`Hi, I'd like to go ahead and book the appointment.`};
+  const saved=plan;plan=bookPlan;
+  const c=await startCall(lastWinner.number,`Booking · ${lastWinner.label}`);
+  await pollCall(c);
+  plan=saved;
+  $("#bookBtn").disabled=false;$("#bookBtn").textContent="✓ Booked — see the call above";
+};
 </script>
 </body>
 </html>

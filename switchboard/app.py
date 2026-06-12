@@ -57,6 +57,12 @@ VAPI_VOICE = os.environ.get("VAPI_VOICE", "alloy")
 VAPI_MODEL = os.environ.get("VAPI_MODEL", "gpt-4o")
 CALL_PROVIDER = os.environ.get("CALL_PROVIDER", "mock").lower()
 
+# Discovery: find local (often phone-only) businesses to call.
+GOOGLE_PLACES_API_KEY = os.environ.get("GOOGLE_PLACES_API_KEY", "")
+DISCOVER_PROVIDER = os.environ.get(
+    "DISCOVER_PROVIDER", "places" if GOOGLE_PLACES_API_KEY else "mock"
+).lower()
+
 STATIC_DIR = Path(__file__).parent / "static"
 
 app = FastAPI(title="Switchboard", version="1.0")
@@ -237,6 +243,66 @@ def mock_status(call_id: str) -> dict:
 
 
 # --------------------------------------------------------------------------- #
+# Discovery (find local, often phone-only, businesses to call)
+# --------------------------------------------------------------------------- #
+def _e164(raw: str) -> str:
+    """Normalise a phone string to a dial-able form (strip spaces/punctuation)."""
+    if not raw:
+        return ""
+    keep = "".join(c for c in raw if c.isdigit() or c == "+")
+    if keep and not keep.startswith("+") and len(keep) == 10:
+        keep = "+1" + keep  # assume US if no country code
+    return keep
+
+
+_MOCK_PLACES = [
+    {"name": "Mike's Quick Lube", "number": "+14085550111", "website": None,
+     "address": "120 S Main St, Milpitas, CA", "rating": 4.6},
+    {"name": "Valley Auto Care", "number": "+14085550122", "website": None,
+     "address": "455 Calaveras Blvd, Milpitas, CA", "rating": 4.3},
+    {"name": "SpeedyOil Express", "number": "+14085550133", "website": "speedyoil.example",
+     "address": "78 Dixon Landing Rd, Milpitas, CA", "rating": 4.1},
+    {"name": "Tony's Garage", "number": "+14085550144", "website": None,
+     "address": "12 Great Mall Pkwy, Milpitas, CA", "rating": 4.8},
+    {"name": "AutoNation Service", "number": "+14085550155", "website": "autonation.example",
+     "address": "900 Montague Expy, Milpitas, CA", "rating": 3.9},
+]
+
+
+async def places_discover(query: str, limit: int) -> list[dict]:
+    headers = {
+        "Content-Type": "application/json",
+        "X-Goog-Api-Key": GOOGLE_PLACES_API_KEY,
+        "X-Goog-FieldMask": (
+            "places.displayName,places.internationalPhoneNumber,"
+            "places.nationalPhoneNumber,places.websiteUri,"
+            "places.formattedAddress,places.rating"
+        ),
+    }
+    body = {"textQuery": query, "maxResultCount": min(limit, 10)}
+    async with httpx.AsyncClient(timeout=30) as client:
+        r = await client.post(
+            "https://places.googleapis.com/v1/places:searchText",
+            headers=headers, json=body,
+        )
+    if r.status_code >= 300:
+        raise HTTPException(502, f"Places error {r.status_code}: {r.text[:300]}")
+    out = []
+    for p in r.json().get("places", []):
+        phone = _e164(p.get("internationalPhoneNumber") or p.get("nationalPhoneNumber") or "")
+        if not phone:
+            continue  # can't call a place with no number
+        out.append({
+            "name": (p.get("displayName") or {}).get("text", "Unknown"),
+            "number": phone,
+            "website": p.get("websiteUri"),
+            "address": p.get("formattedAddress", ""),
+            "rating": p.get("rating"),
+        })
+    return out
+
+
+# --------------------------------------------------------------------------- #
 # Models
 # --------------------------------------------------------------------------- #
 class PlanRequest(BaseModel):
@@ -259,6 +325,12 @@ class ExtractRequest(BaseModel):
     transcript: str
 
 
+class DiscoverRequest(BaseModel):
+    query: str                      # e.g. "oil change"
+    location: str = ""              # e.g. "Milpitas, CA"
+    limit: int = 5
+
+
 # --------------------------------------------------------------------------- #
 # Endpoints
 # --------------------------------------------------------------------------- #
@@ -271,6 +343,8 @@ async def health():
         "bland_key": bool(BLAND_API_KEY),
         "vapi_key": bool(VAPI_API_KEY),
         "vapi_number": bool(VAPI_PHONE_NUMBER_ID),
+        "discover_provider": DISCOVER_PROVIDER,
+        "places_key": bool(GOOGLE_PLACES_API_KEY),
     }
 
 
@@ -296,6 +370,22 @@ async def plan(req: PlanRequest):
             "first_line": f"Hi! I'm calling about {req.task}.",
         }
     return result
+
+
+@app.post("/api/discover")
+async def discover(req: DiscoverRequest):
+    """Find local businesses to call. Flags the phone-only ones (no website) —
+    the ones you literally can't price any other way."""
+    query = req.query if not req.location else f"{req.query} near {req.location}"
+    if DISCOVER_PROVIDER == "places" and GOOGLE_PLACES_API_KEY:
+        places = await places_discover(query, req.limit)
+    else:
+        places = _MOCK_PLACES[: req.limit]
+    # mark the unindexed ones and sort them first — that's our whole thesis
+    for p in places:
+        p["phone_only"] = not bool(p.get("website"))
+    places.sort(key=lambda p: (not p["phone_only"], -(p.get("rating") or 0)))
+    return {"businesses": places, "provider": DISCOVER_PROVIDER}
 
 
 @app.post("/api/call")
